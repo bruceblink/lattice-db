@@ -1,0 +1,16 @@
+[package]
+name = "lattice-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+lattice-core = { path = "../lattice-core" }
+lattice-format = { path = "../lattice-format" }
+lattice-sync = { path = "../lattice-sync" }
+lattice-transport = { path = "../lattice-transport" }
+
+[lints]
+workspace = true

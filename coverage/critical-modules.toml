@@ -1,0 +1,25 @@
+version = 1
+tool = "cargo llvm-cov"
+unit_tests_only = true
+line = 100
+function = 100
+region = 100
+# Rust stable does not currently expose cargo-llvm-cov branch instrumentation;
+# enable a 100% branch threshold when the pinned toolchain supports it.
+branch = "when-supported"
+
+[[module]]
+path = "crates/lattice-format/src/lib.rs"
+reason = "Protocol and file-format validation"
+
+[[module]]
+path = "crates/lattice-core/src/lib.rs"
+reason = "Storage boundary validation"
+
+[[module]]
+path = "crates/lattice-sync/src/lib.rs"
+reason = "Synchronization state transitions"
+
+[[module]]
+path = "crates/lattice-transport/src/lib.rs"
+reason = "Transport capacity validation"

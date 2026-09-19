@@ -1,0 +1,23 @@
+[workspace]
+members = [
+    "crates/lattice-format",
+    "crates/lattice-core",
+    "crates/lattice-sync",
+    "crates/lattice-transport",
+    "crates/lattice-cli",
+]
+default-members = ["crates/lattice-cli"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"
