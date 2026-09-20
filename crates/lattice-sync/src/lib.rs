@@ -1,5 +1,12 @@
 //! Synchronization state-machine boundary for Lattice DB.
 
+/// Monotonic synchronization milestones visible to callers.
+///
+/// `LocalCommitted` means the source has a durable commit, `HubReceived` means
+/// the hub has durably stored the event and deduplication record, and
+/// `HubApplied` means current state plus the apply cursor are durable. The enum
+/// deliberately contains no transient network state, so it cannot imply that
+/// an ACK was sent merely because a connection exists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyncState {
     LocalCommitted,
@@ -7,13 +14,23 @@ pub enum SyncState {
     HubApplied,
 }
 
+/// Identifies a rejected edge in the monotonic synchronization graph.
+///
+/// Keeping both endpoints lets callers report the exact invalid transition;
+/// no state is mutated by validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InvalidTransition {
+    /// State observed before the attempted transition.
     pub from: SyncState,
+    /// State requested by the caller.
     pub to: SyncState,
 }
 
 /// Returns whether a synchronization status transition is allowed.
+///
+/// The relation is a constant-size membership test, so it is O(1) time and
+/// O(1) space. Self-transitions are allowed for idempotent retries; forward
+/// edges are allowed only in the order local -> received -> applied.
 pub fn is_valid_transition(from: SyncState, to: SyncState) -> bool {
     matches!(
         (from, to),
@@ -26,6 +43,9 @@ pub fn is_valid_transition(from: SyncState, to: SyncState) -> bool {
 }
 
 /// Validates a supplied transition list for the stage 0 executable.
+///
+/// The scan stops at the first invalid edge and returns it unchanged. This is
+/// O(N) time and O(1) space, and it does not partially apply any transition.
 pub fn validate_transitions(
     transitions: &[(SyncState, SyncState)],
 ) -> Result<(), InvalidTransition> {
@@ -37,7 +57,10 @@ pub fn validate_transitions(
     Ok(())
 }
 
-/// Checks the monotonic status path required by the initial synchronization contract.
+/// Checks the complete five-edge status path required by stage 0.
+///
+/// The fixed list covers three idempotent self-edges and two forward edges;
+/// omitting one would leave a legal ACK/retry behavior undocumented.
 pub fn validate_stage_zero() -> Result<(), InvalidTransition> {
     validate_transitions(&[
         (SyncState::LocalCommitted, SyncState::LocalCommitted),

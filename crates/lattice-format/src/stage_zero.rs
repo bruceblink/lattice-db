@@ -45,14 +45,29 @@ const REQUIRED_FAULT_CATEGORIES: [&str; 7] = [
     "restart",
 ];
 
+/// Machine-checkable summary emitted after both stage-0 documents pass.
+///
+/// Counts are used by the CLI as a deterministic smoke-test result. `spec_hash`
+/// is a stable non-cryptographic fingerprint of the exact document bytes; it
+/// detects accidental edits but does not provide authenticity or signatures.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StageZeroSummary {
+    /// Version string of the frozen specification document.
     pub spec_version: String,
+    /// Number of fault cases validated against the required matrix.
     pub fault_cases: usize,
+    /// Number of transition rules validated in the state machine.
     pub transition_rules: usize,
+    /// Lowercase hexadecimal FNV-1a fingerprint of both documents.
     pub spec_hash: String,
 }
 
+/// Parse or semantic validation failures from the stage-0 document checker.
+///
+/// Parse errors identify malformed TOML; validation errors identify a missing,
+/// duplicated, incompatible, or otherwise unsafe rule. Keeping the categories
+/// separate lets the CLI report whether a document is syntactically unreadable
+/// or readable but not acceptable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StageZeroError {
     Parse(String),
@@ -70,6 +85,11 @@ impl Display for StageZeroError {
 
 impl std::error::Error for StageZeroError {}
 
+/// The complete top-level schema of the frozen protocol document.
+///
+/// Every field participates in validation. The private type prevents callers
+/// from constructing a partially validated specification and keeps the TOML
+/// schema as the single input boundary for this checker.
 #[derive(Debug, Clone, Deserialize)]
 struct FrozenSpec {
     spec_version: String,
@@ -98,6 +118,10 @@ struct FrozenSpec {
     transitions: Vec<TransitionRule>,
 }
 
+/// Numeric wire identifiers for the six stage-0 frame kinds.
+///
+/// Values must be unique and match the required table; unknown frame values are
+/// rejected later instead of being treated as empty records.
 #[derive(Debug, Clone, Deserialize)]
 struct FrameTypes {
     begin: u8,
@@ -108,6 +132,10 @@ struct FrameTypes {
     snapshot_marker: u8,
 }
 
+/// Persistence conditions attached to each externally visible sync state.
+///
+/// These strings are intentionally validated as non-empty design decisions in
+/// stage 0. Later runtime code will turn them into ordered I/O operations.
 #[derive(Debug, Clone, Deserialize)]
 struct Durability {
     local_committed: String,
@@ -115,6 +143,11 @@ struct Durability {
     hub_applied: String,
 }
 
+/// One allowed state transition and its observable persistence effects.
+///
+/// `from` and `to` form the identity of a rule; the other fields explain when
+/// it may occur and how the contiguous cursor changes. Duplicate pairs are not
+/// allowed because they would make the protocol interpretation ambiguous.
 #[derive(Debug, Clone, Deserialize)]
 struct TransitionRule {
     from: String,
@@ -124,12 +157,20 @@ struct TransitionRule {
     cursor_effect: String,
 }
 
+/// Versioned collection of deterministic failure cases.
+///
+/// The validator checks required identities and categories before inspecting
+/// each case, so a missing case cannot be hidden by a valid-looking subset.
 #[derive(Debug, Clone, Deserialize)]
 struct FaultMatrix {
     schema_version: String,
     cases: Vec<FaultCase>,
 }
 
+/// One fault injection and its expected externally observable result.
+///
+/// Text fields are design data rather than free-form logs: they must be present
+/// and any referenced outcome or error code must be declared by `FrozenSpec`.
 #[derive(Debug, Clone, Deserialize)]
 struct FaultCase {
     id: String,
@@ -145,7 +186,12 @@ struct FaultCase {
     isolation_scope: String,
 }
 
-/// Parses and validates the versioned stage 0 documents used by the CLI.
+/// Parses and validates the versioned stage-0 documents used by the CLI.
+///
+/// The public entry point always uses compile-time embedded bytes, eliminating
+/// a working-directory dependency. Parsing, semantic checks, and hash creation
+/// are linear in the two document sizes and allocate only the deserialized
+/// document model. Any error aborts before a summary is returned.
 pub fn validate_stage_zero_documents() -> Result<StageZeroSummary, StageZeroError> {
     validate_stage_zero_documents_from(FROZEN_SPEC, FAULT_MATRIX)
 }
@@ -166,7 +212,12 @@ fn validate_stage_zero_documents_from(
     })
 }
 
-/// Decodes one embedded TOML document and adds its role to parse failures.
+/// Decodes one TOML document and adds its role to parse failures.
+///
+/// TOML deserialization is the only operation here that can allocate according
+/// to input size; the caller controls the embedded documents in production.
+/// Malformed syntax becomes `StageZeroError::Parse` without being downgraded to
+/// an empty/default structure.
 fn parse_document<T: for<'de> Deserialize<'de>>(
     document: &str,
     role: &str,
@@ -174,7 +225,11 @@ fn parse_document<T: for<'de> Deserialize<'de>>(
     toml::from_str(document).map_err(|error| StageZeroError::Parse(format!("{role}: {error}")))
 }
 
-/// Checks the frozen protocol, frame, capacity, and transition rules.
+/// Checks protocol identity, capacities, frame values, durability, and rules.
+///
+/// Checks are ordered so a caller receives the first actionable violation. The
+/// function is linear in list sizes and fails closed: no later list is trusted
+/// after a preceding invariant fails.
 fn validate_spec(spec: &FrozenSpec) -> Result<(), StageZeroError> {
     require(spec.spec_version == "0.1", "spec_version must be 0.1")?;
     require(
@@ -244,6 +299,10 @@ fn validate_spec(spec: &FrozenSpec) -> Result<(), StageZeroError> {
 }
 
 /// Checks all frame type names and values against the frozen wire format.
+///
+/// A set detects duplicate numeric values, then a fixed lookup verifies every
+/// required name/value pair. The algorithm is O(F log F) for F frame kinds and
+/// rejects unknown substitutions instead of silently renumbering them.
 fn validate_frame_types(types: &FrameTypes) -> Result<(), StageZeroError> {
     let actual = [
         ("begin", types.begin),
@@ -272,6 +331,9 @@ fn validate_frame_types(types: &FrameTypes) -> Result<(), StageZeroError> {
 }
 
 /// Checks that every durability state has a non-empty persistence rule.
+///
+/// This is O(D) for the three states and preserves the design requirement that
+/// an ACK cannot be emitted without a documented durable boundary.
 fn validate_durability(durability: &Durability) -> Result<(), StageZeroError> {
     for (name, value) in [
         ("local_committed", &durability.local_committed),
@@ -287,6 +349,10 @@ fn validate_durability(durability: &Durability) -> Result<(), StageZeroError> {
 }
 
 /// Checks the exact monotonic state transitions required by the baseline.
+///
+/// A set first rejects duplicate pairs, then verifies the required five edges.
+/// This makes the transition relation deterministic while still allowing each
+/// rule to carry its own trigger, persistence, and cursor explanation.
 fn validate_transitions(transitions: &[TransitionRule]) -> Result<(), StageZeroError> {
     let required = [
         ("local_committed", "local_committed"),
@@ -327,7 +393,12 @@ fn validate_transitions(transitions: &[TransitionRule]) -> Result<(), StageZeroE
     Ok(())
 }
 
-/// Checks the fault matrix schema, case identities, categories, and references.
+/// Checks schema, case identities, categories, and cross-document references.
+///
+/// The identity/category passes happen before case validation so omissions are
+/// reported even when all remaining cases are well-formed. Runtime behavior is
+/// not executed here; this function only proves that the test contract is
+/// complete and internally referential.
 fn validate_matrix(spec: &FrozenSpec, matrix: &FaultMatrix) -> Result<(), StageZeroError> {
     require(
         matrix.schema_version == "0.1",
@@ -362,6 +433,10 @@ fn validate_matrix(spec: &FrozenSpec, matrix: &FaultMatrix) -> Result<(), StageZ
 }
 
 /// Checks required text and references for one fault case.
+///
+/// Empty descriptions are rejected because an undocumented injection point is
+/// not reproducible. Reference checks are O(1) average-time set lookups and do
+/// not mutate the supplied case or specification.
 fn validate_fault_case(
     case: &FaultCase,
     error_codes: &BTreeSet<&str>,
@@ -395,6 +470,10 @@ fn validate_fault_case(
 }
 
 /// Returns a stable FNV-1a hash over the exact frozen documents.
+///
+/// The byte stream is `spec`, one NUL separator, then `matrix`; iteration is
+/// linear in total byte length and uses constant memory. FNV-1a is a change
+/// detector only, so it must not be used as a security signature.
 fn stable_hash(spec: &str, matrix: &str) -> String {
     let mut hash = 0xcbf29ce484222325_u64;
     for byte in spec.bytes().chain([0_u8]).chain(matrix.bytes()) {

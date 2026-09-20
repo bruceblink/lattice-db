@@ -2,14 +2,29 @@ use std::fmt::{Display, Formatter};
 
 use crate::{CURRENT_FILE_FORMAT_VERSION, CURRENT_PROTOCOL_VERSION};
 
+/// The small format contract shared by storage and transport during bootstrap.
+///
+/// The versions identify the on-disk and wire representations. Capacity values
+/// are complete encoded-byte limits, so callers must validate before allocating
+/// buffers or accepting a record. The struct is immutable by convention after
+/// validation; changing either capacity requires re-running the same checks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProtocolBaseline {
+    /// Wire protocol revision understood by the current binary.
     pub protocol_version: u16,
+    /// On-disk frame and segment revision understood by the current binary.
     pub file_format_version: u16,
+    /// Maximum encoded size of one record, including its format overhead.
     pub max_record_bytes: u64,
+    /// Maximum encoded size of one batch; it cannot be below one record.
     pub max_batch_bytes: u64,
 }
 
+/// Reject reasons for the bootstrap format contract.
+///
+/// These variants are deliberately small and stable because the CLI and later
+/// recovery code use them to distinguish compatibility failures from capacity
+/// failures. No variant silently clamps or rewrites caller-provided values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FormatError {
     UnsupportedProtocolVersion(u16),
@@ -38,6 +53,10 @@ impl Display for FormatError {
 impl std::error::Error for FormatError {}
 
 /// Returns the initial version and capacity values used by boundary checks.
+///
+/// This is an O(1) constructor with no I/O or allocation beyond the returned
+/// value. The constants are only a bootstrap baseline; the versioned stage-0
+/// document is the source used by the runnable validator.
 pub fn stage_zero_baseline() -> ProtocolBaseline {
     ProtocolBaseline {
         protocol_version: CURRENT_PROTOCOL_VERSION,
@@ -48,7 +67,12 @@ pub fn stage_zero_baseline() -> ProtocolBaseline {
 }
 
 impl ProtocolBaseline {
-    /// Checks that protocol versions and capacity relationships are safe to use.
+    /// Checks versions and capacity relationships before a caller allocates.
+    ///
+    /// The checks run in dependency order: compatibility is rejected first,
+    /// then zero capacity, then the batch-to-record relationship. This is O(1)
+    /// time and O(1) space. On failure the input is unchanged and no resource
+    /// ownership is transferred to the caller.
     pub fn validate(&self) -> Result<(), FormatError> {
         if self.protocol_version != CURRENT_PROTOCOL_VERSION {
             return Err(FormatError::UnsupportedProtocolVersion(
