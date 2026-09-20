@@ -12,8 +12,12 @@ where
             0
         }
         Some("validate-stage-0") => match validate_stage_zero() {
-            Ok(()) => {
+            Ok(summary) => {
                 println!("stage_0=pass");
+                println!("spec_version={}", summary.spec_version);
+                println!("fault_cases={}", summary.fault_cases);
+                println!("transition_rules={}", summary.transition_rules);
+                println!("spec_hash={}", summary.spec_hash);
                 0
             }
             Err(error) => {
@@ -29,16 +33,15 @@ where
 }
 
 /// Runs all stage 0 boundary checks before any runtime implementation begins.
-pub fn validate_stage_zero() -> Result<(), String> {
-    lattice_format::stage_zero_baseline()
-        .validate()
-        .map_err(|error| error.to_string())?;
+pub fn validate_stage_zero() -> Result<lattice_format::StageZeroSummary, String> {
+    let summary =
+        lattice_format::validate_stage_zero_documents().map_err(|error| error.to_string())?;
     lattice_core::validate_stage_zero().map_err(|error| error.to_string())?;
     lattice_sync::validate_stage_zero()
         .map_err(|error| format!("sync validation failed: {error:?}"))?;
     lattice_transport::validate_stage_zero()
         .map_err(|error| format!("transport validation failed: {error:?}"))?;
-    Ok(())
+    Ok(summary)
 }
 
 #[cfg(test)]

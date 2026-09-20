@@ -1,0 +1,90 @@
+spec_version = "0.1"
+protocol_version = 1
+file_format_version = 1
+encoding = "little-endian"
+text_encoding = "utf-8"
+checksum = "crc32c"
+
+max_record_bytes = 1048576
+max_batch_bytes = 4194304
+max_transaction_operations = 1024
+log_segment_bytes = 67108864
+snapshot_bytes = 268435456
+pending_queue_bytes = 1073741824
+
+node_id_bytes = 16
+dataset_id_max_bytes = 255
+partition_id_max_bytes = 255
+record_id_max_bytes = 255
+sequence_bytes = 8
+
+frame_magic = "LDB1"
+frame_header_bytes = 26
+
+error_codes = [
+    "E_FORMAT_VERSION",
+    "E_FRAME_TYPE",
+    "E_FRAME_LENGTH",
+    "E_CHECKSUM",
+    "E_TRUNCATED_TAIL",
+    "E_DISK_FULL",
+    "E_SEQUENCE_GAP",
+    "E_DUPLICATE_OPERATION",
+    "E_QUARANTINED_EVENT",
+]
+
+event_outcomes = [
+    "accepted",
+    "duplicate",
+    "pending_gap",
+    "rejected",
+    "quarantined",
+]
+
+[frame_types]
+begin = 1
+operation = 2
+commit = 3
+change_event = 4
+cursor = 5
+snapshot_marker = 6
+
+[[transitions]]
+from = "local_committed"
+to = "local_committed"
+trigger = "local transaction commit is durable"
+persisted = "commit frame and transaction data are synced"
+cursor_effect = "local commit sequence advances"
+
+[[transitions]]
+from = "local_committed"
+to = "hub_received"
+trigger = "hub stores the event and deduplication record"
+persisted = "receive log, deduplication record, and receive cursor are synced"
+cursor_effect = "receive cursor advances only through a contiguous sequence"
+
+[[transitions]]
+from = "hub_received"
+to = "hub_received"
+trigger = "hub receives a duplicate or waits for a missing event"
+persisted = "receive state and deduplication result are retained"
+cursor_effect = "cursor is unchanged for a duplicate or a gap"
+
+[[transitions]]
+from = "hub_received"
+to = "hub_applied"
+trigger = "hub applies the event to current state"
+persisted = "current state, apply record, and apply cursor are synced"
+cursor_effect = "apply cursor advances only through a contiguous sequence"
+
+[[transitions]]
+from = "hub_applied"
+to = "hub_applied"
+trigger = "hub observes an already applied event"
+persisted = "applied state remains durable"
+cursor_effect = "cursor is unchanged"
+
+[durability]
+local_committed = "COMMIT frame is appended and sync_all succeeds before success is returned"
+hub_received = "event, deduplication record, and receive cursor are persisted before acknowledgement"
+hub_applied = "current state, apply record, and apply cursor are persisted before acknowledgement"

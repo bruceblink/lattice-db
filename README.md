@@ -11,6 +11,7 @@ Lattice DB 是一个面向弱网边缘环境、从零实现的通用分布式数
 - [需求与一致性说明 v0.1](docs/requirements-and-consistency-v0.1.md)
 - [后续开发计划 v0.1](docs/development-plan-v0.1.md)
 - [个人可用版每日开发计划 v0.1](docs/daily-development-plan-v0.1.md)
+- [阶段 0 验收说明 v0.1](docs/stage-0/acceptance-v0.1.md)
 
 ## Workspace 结构
 
