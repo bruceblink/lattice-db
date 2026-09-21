@@ -9,8 +9,20 @@ region = 100
 branch = "when-supported"
 
 [[module]]
-path = "crates/lattice-format/src/lib.rs"
-reason = "Protocol and file-format validation"
+path = "crates/lattice-format/src/baseline.rs"
+reason = "Validated protocol and capacity baseline"
+
+[[module]]
+path = "crates/lattice-format/src/stage_zero.rs"
+reason = "Stage-0 document orchestration and vocabulary checks"
+
+[[module]]
+path = "crates/lattice-format/src/stage_zero_validation.rs"
+reason = "Identifier, sequence, filesystem, and frame-layout invariants"
+
+[[module]]
+path = "crates/lattice-format/src/stage_zero_model.rs"
+reason = "Deserialized stage-0 data structures; declarations have no executable branches"
 
 [[module]]
 path = "crates/lattice-core/src/lib.rs"
@@ -23,3 +35,15 @@ reason = "Synchronization state transitions"
 [[module]]
 path = "crates/lattice-transport/src/lib.rs"
 reason = "Transport capacity validation"
+
+[[excluded]]
+path = "crates/lattice-format/src/lib.rs"
+reason = "Module declaration and API re-exports only"
+
+[[excluded]]
+path = "crates/lattice-cli/src/lib.rs"
+reason = "CLI assembly and output routing; exercised by workspace tests and smoke command"
+
+[[excluded]]
+path = "crates/lattice-cli/src/main.rs"
+reason = "Process exit-code wrapper only"

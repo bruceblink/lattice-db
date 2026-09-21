@@ -19,8 +19,6 @@ record_id_max_bytes = 255
 sequence_bytes = 8
 
 frame_magic = "LDB1"
-frame_header_bytes = 26
-
 error_codes = [
     "E_FORMAT_VERSION",
     "E_FRAME_TYPE",
@@ -40,6 +38,87 @@ event_outcomes = [
     "rejected",
     "quarantined",
 ]
+
+frame_header_bytes = 32
+
+[identifiers]
+node_encoding = "uuid-v4-rfc4122-bytes"
+node_bytes = 16
+node_generator = "os_csprng"
+node_persistence = "node.meta before first write"
+node_immutable = true
+transaction_encoding = "uuid-v4-rfc4122-bytes"
+transaction_bytes = 16
+transaction_generator = "os_csprng"
+transaction_reuse = "reject_if_exists"
+operation_encoding = "uuid-v4-rfc4122-bytes"
+operation_bytes = 16
+operation_generator = "os_csprng"
+operation_reuse = "reject_if_exists"
+operation_dedup_key = "(origin_node_id, operation_id)"
+text_encoding = "utf-8"
+text_min_bytes = 1
+text_max_bytes = 255
+text_length_prefix = "u16"
+text_equality = "bytewise"
+text_normalization = "none"
+text_nul = "forbidden"
+
+[sequences]
+origin_scope = "(origin_node_id, dataset_id, partition_id)"
+origin_width_bits = 64
+origin_initial = 1
+origin_assignment = "after_durable_commit"
+origin_persistence = "same_commit_durability_boundary"
+origin_restart = "last_durable_plus_one"
+origin_overflow = "reject_E_SEQUENCE_EXHAUSTED"
+partition_scope = "(dataset_id, partition_id)"
+partition_width_bits = 64
+partition_initial = 1
+partition_assignment = "at_durable_commit"
+partition_gaps = "failed_transaction_does_not_advance"
+partition_overflow = "reject_E_SEQUENCE_EXHAUSTED"
+cursor_key = "(peer_node_id, origin_node_id, dataset_id, partition_id, kind)"
+cursor_kinds = ["send", "received", "applied"]
+cursor_value = "largest_contiguous_durable_origin_sequence"
+cursor_initial = 0
+cursor_advance = "only_current_plus_one"
+duplicate_effect = "does_not_advance"
+gap_effect = "pending_E_SEQUENCE_GAP_and_does_not_advance"
+
+[filesystem]
+data_root = "data"
+format_meta = "format.meta"
+lock_file = "LOCK"
+partition_directory = "partitions/{partition_digest_hex}"
+segment_pattern = "segments/segment-{first_sequence:020}.ldb"
+snapshot_pattern = "snapshots/snapshot-{commit_sequence:020}.lds"
+cursor_pattern = "cursors/{peer_node_id}.cur"
+quarantine_pattern = "quarantine/{origin_node_id}-{origin_sequence:020}.bin"
+temporary_directory = "tmp"
+temporary_suffix = ".partial"
+path_input_rule = "relative_only_reject_absolute_parent_and_separator"
+atomic_write_steps = ["write", "sync_file", "rename", "sync_parent_directory"]
+
+[frame_layout]
+magic_offset = 0
+magic_width = 4
+version_offset = 4
+version_width = 2
+type_offset = 6
+flags_offset = 7
+payload_length_offset = 8
+payload_length_width = 4
+sequence_offset = 12
+sequence_width = 8
+checksum_offset = 20
+checksum_width = 4
+reserved_offset = 24
+reserved_width = 8
+reserved_value = 0
+checksum_coverage = "header_without_checksum_field_plus_payload"
+unknown_type = "reject_E_FRAME_TYPE"
+nonzero_flags = "reject_E_FRAME_TYPE"
 
 [frame_types]
 begin = 1

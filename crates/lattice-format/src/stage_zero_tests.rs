@@ -273,11 +273,134 @@ fn rejects_invalid_fault_case_fields_and_references() {
     empty_field!(cursor_effect);
     empty_field!(isolation_scope);
 
-    base.expected_outcome = "unknown".to_owned();
     let outcomes = spec.event_outcomes.iter().map(String::as_str).collect();
     let errors = spec.error_codes.iter().map(String::as_str).collect();
+    base.expected_outcome = "accepted".to_owned();
+    base.cursor_effect = "unchanged or advances".to_owned();
+    assert!(validate_fault_case(&base, &errors, &outcomes).is_err());
+    base.cursor_effect = "unchanged".to_owned();
+    base.expected_outcome = "unknown".to_owned();
     assert!(validate_fault_case(&base, &errors, &outcomes).is_err());
     base.expected_outcome = "accepted".to_owned();
     base.error_code = "E_UNKNOWN".to_owned();
     assert!(validate_fault_case(&base, &errors, &outcomes).is_err());
+}
+
+#[test]
+fn rejects_each_structured_freeze_rule() {
+    macro_rules! invalid_identifier {
+        ($field:ident, $value:expr) => {{
+            let mut value = valid_spec().identifiers;
+            value.$field = $value;
+            assert!(validate_identifiers(&value).is_err(), stringify!($field));
+        }};
+    }
+    invalid_identifier!(node_encoding, "other".to_owned());
+    invalid_identifier!(node_bytes, 0);
+    invalid_identifier!(node_generator, "other".to_owned());
+    invalid_identifier!(node_persistence, "other".to_owned());
+    invalid_identifier!(node_immutable, false);
+    invalid_identifier!(transaction_encoding, "other".to_owned());
+    invalid_identifier!(transaction_bytes, 0);
+    invalid_identifier!(transaction_generator, "other".to_owned());
+    invalid_identifier!(transaction_reuse, "other".to_owned());
+    invalid_identifier!(operation_encoding, "other".to_owned());
+    invalid_identifier!(operation_bytes, 0);
+    invalid_identifier!(operation_generator, "other".to_owned());
+    invalid_identifier!(operation_reuse, "other".to_owned());
+    invalid_identifier!(operation_dedup_key, "other".to_owned());
+    invalid_identifier!(text_encoding, "other".to_owned());
+    invalid_identifier!(text_min_bytes, 0);
+    invalid_identifier!(text_max_bytes, 0);
+    invalid_identifier!(text_length_prefix, "other".to_owned());
+    invalid_identifier!(text_equality, "other".to_owned());
+    invalid_identifier!(text_normalization, "other".to_owned());
+    invalid_identifier!(text_nul, "allowed".to_owned());
+
+    macro_rules! invalid_sequence {
+        ($field:ident, $value:expr) => {{
+            let mut value = valid_spec().sequences;
+            value.$field = $value;
+            assert!(validate_sequences(&value).is_err(), stringify!($field));
+        }};
+    }
+    invalid_sequence!(origin_scope, "other".to_owned());
+    invalid_sequence!(origin_width_bits, 0);
+    invalid_sequence!(origin_initial, 0);
+    invalid_sequence!(origin_assignment, "other".to_owned());
+    invalid_sequence!(origin_persistence, "other".to_owned());
+    invalid_sequence!(origin_restart, "other".to_owned());
+    invalid_sequence!(origin_overflow, "other".to_owned());
+    invalid_sequence!(partition_scope, "other".to_owned());
+    invalid_sequence!(partition_width_bits, 0);
+    invalid_sequence!(partition_initial, 0);
+    invalid_sequence!(partition_assignment, "other".to_owned());
+    invalid_sequence!(partition_gaps, "other".to_owned());
+    invalid_sequence!(partition_overflow, "other".to_owned());
+    invalid_sequence!(cursor_key, "other".to_owned());
+    invalid_sequence!(cursor_kinds, vec!["other".to_owned()]);
+    invalid_sequence!(cursor_value, "other".to_owned());
+    invalid_sequence!(cursor_initial, 1);
+    invalid_sequence!(cursor_advance, "other".to_owned());
+    invalid_sequence!(duplicate_effect, "other".to_owned());
+    invalid_sequence!(gap_effect, "other".to_owned());
+
+    macro_rules! invalid_filesystem {
+        ($field:ident, $value:expr) => {{
+            let mut value = valid_spec().filesystem;
+            value.$field = $value;
+            assert!(validate_filesystem(&value).is_err(), stringify!($field));
+        }};
+    }
+    invalid_filesystem!(data_root, "other".to_owned());
+    invalid_filesystem!(format_meta, "other".to_owned());
+    invalid_filesystem!(lock_file, "other".to_owned());
+    invalid_filesystem!(partition_directory, "other".to_owned());
+    invalid_filesystem!(segment_pattern, "other".to_owned());
+    invalid_filesystem!(snapshot_pattern, "other".to_owned());
+    invalid_filesystem!(cursor_pattern, "other".to_owned());
+    invalid_filesystem!(quarantine_pattern, "other".to_owned());
+    invalid_filesystem!(temporary_directory, "other".to_owned());
+    invalid_filesystem!(temporary_suffix, "other".to_owned());
+    invalid_filesystem!(path_input_rule, "other".to_owned());
+    invalid_filesystem!(atomic_write_steps, vec!["other".to_owned()]);
+
+    macro_rules! invalid_layout {
+        ($field:ident, $value:expr) => {{
+            let mut value = valid_spec().frame_layout;
+            value.$field = $value;
+            assert!(validate_frame_layout(&value).is_err(), stringify!($field));
+        }};
+    }
+    invalid_layout!(magic_offset, 1);
+    invalid_layout!(magic_width, 0);
+    invalid_layout!(version_offset, 0);
+    invalid_layout!(version_width, 0);
+    invalid_layout!(type_offset, 0);
+    invalid_layout!(flags_offset, 0);
+    invalid_layout!(payload_length_offset, 0);
+    invalid_layout!(payload_length_width, 0);
+    invalid_layout!(sequence_offset, 0);
+    invalid_layout!(sequence_width, 0);
+    invalid_layout!(checksum_offset, 0);
+    invalid_layout!(checksum_width, 0);
+    invalid_layout!(reserved_offset, 0);
+    invalid_layout!(reserved_width, 0);
+    invalid_layout!(reserved_value, 1);
+    invalid_layout!(checksum_coverage, "other".to_owned());
+    invalid_layout!(unknown_type, "other".to_owned());
+    invalid_layout!(nonzero_flags, "other".to_owned());
+
+    let mut spec = valid_spec();
+    spec.identifiers.node_bytes = 0;
+    assert!(validate_spec(&spec).is_err());
+    let mut spec = valid_spec();
+    spec.sequences.origin_width_bits = 0;
+    assert!(validate_spec(&spec).is_err());
+    let mut spec = valid_spec();
+    spec.filesystem.data_root = "other".to_owned();
+    assert!(validate_spec(&spec).is_err());
+    let mut spec = valid_spec();
+    spec.frame_layout.magic_offset = 1;
+    assert!(validate_spec(&spec).is_err());
 }

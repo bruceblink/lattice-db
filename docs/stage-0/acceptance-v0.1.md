@@ -29,6 +29,7 @@ spec_hash=<16 hexadecimal characters>
 验证器读取并检查：
 
 - `frozen-spec-v0.1.toml` 的版本、编码、容量、帧类型、错误码、事件结果和持久化规则。
+- `identifiers`、`sequences`、`filesystem` 和 `frame_layout` 中的 ID、连续游标、路径安全、原子写入顺序和 32 字节帧头偏移。
 - `fault-matrix-v0.1.toml` 的 16 个唯一案例、7 类故障、状态结果和错误码引用。
 - `local_committed -> hub_received -> hub_applied` 的五条允许状态转换。
 - 当前 workspace 的存储、同步和传输边界验证。
@@ -44,6 +45,6 @@ powershell -NoProfile -File scripts/check-source-size.ps1
 cargo run -p lattice-cli -- validate-stage-0
 ```
 
-覆盖率清单把 `lattice-format/src/baseline.rs`、`lattice-format/src/stage_zero.rs`、`lattice-core/src/lib.rs`、`lattice-sync/src/lib.rs` 和 `lattice-transport/src/lib.rs` 作为阶段 0 关键模块，函数、行和区域阈值均为 100%。`lattice-cli` 仅负责启动装配和输出路由，`lattice-format/src/lib.rs` 仅负责模块声明与 API 重导出；两者不计入关键模块覆盖率，但仍由 workspace 测试和 CLI 验收覆盖。
+覆盖率清单在 `coverage/critical-modules.toml` 中登记 `baseline.rs`、`stage_zero.rs`、`stage_zero_validation.rs`、`lattice-core`、`lattice-sync` 和 `lattice-transport`；阶段 0 关键逻辑的函数、行和区域阈值均为 100%。规范模型文件只包含反序列化字段声明。`lattice-cli` 和 `lattice-format/src/lib.rs` 的启动装配、输出路由或 API 重导出属于明确登记的排除项，但仍由 workspace 测试和 CLI 验收覆盖；覆盖率脚本会先检查清单中的每个路径存在，再运行统一阈值检查。
 
 本阶段没有数据库网络服务，因此不执行 Docker 集成测试；Docker 集成从阶段 3C 开始。阶段 0 的运行证据只证明规范和边界验证器可运行，不证明日志、事务或同步运行时已经完成。
